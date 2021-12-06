@@ -10,6 +10,7 @@ import { ReactComponent as PlayCircle } from '@icons/play-circle.svg'
 import { useAllAccountAddresses, useExtensionAutoConnect } from '@libs/talisman'
 import { ApiPromise, WsProvider } from '@polkadot/api'
 import { decodeAddress, encodeAddress } from '@polkadot/keyring'
+import { GenericExtrinsic } from '@polkadot/types'
 import { hexToU8a, isHex } from '@polkadot/util'
 import { cryptoWaitReady } from '@polkadot/util-crypto'
 import { web3FromAddress } from '@talismn/dapp-connect'
@@ -108,56 +109,115 @@ function useInjector(nftObject: NFTConsolidated) {
 type SendStatus = 'INPROGRESS' | 'SUCCESS' | 'FAILED'
 
 const sendNFT = async (senderAddress: string, api: ApiPromise, remark: string, injector: any, cb: any) => {
-  const txs = [api.tx.system.remark(remark)]
-  const tx = api.tx.utility.batchAll(txs)
+  const tx = api.tx.system.remark(`Awakening the Talisman - Warp Lizard: ${Date.now()}`)
+  console.log('sending in tx', tx)
   const txSigned = await tx.signAsync(senderAddress, { signer: injector.signer })
-
-  const unsub = await txSigned.send(async result => {
-    const { status, events = [], dispatchError } = result
-
-    for (const {
-      phase,
-      event: { data, method, section },
-    } of events) {
-      console.info(`\t${phase}: ${section}.${method}:: ${data}`)
-    }
-
-    let txStatus: SendStatus = 'INPROGRESS'
-
-    if (status.isInBlock) {
-      console.info(`Transaction included at blockHash ${status.asInBlock}`)
-    }
-    if (status.isFinalized) {
-      console.info(`Transaction finalized at blockHash ${status.asFinalized}`)
-      unsub()
-
-      const someSuccess = events.some(
-        ({ event: { method, section } }) => section === 'system' && method === 'ExtrinsicSuccess'
-      )
-      const someFailed = events.some(
-        ({ event: { method, section } }) => section === 'system' && method === 'ExtrinsicFailed'
-      )
-
-      if (dispatchError && dispatchError.isModule && api) {
-        const decoded = api.registry.findMetaError(dispatchError.asModule)
-        const { docs, name, section } = decoded
-        console.log('error', `${section}.${name}: ${docs.join(' ')}`)
-        txStatus = 'FAILED'
-      } else if (dispatchError) {
-        console.log('error', dispatchError.toString())
-        txStatus = 'FAILED'
-      }
-
-      if (someSuccess && !someFailed) {
-        txStatus = 'SUCCESS'
-      }
-
-      console.log(txStatus)
-    }
-    if (cb) {
-      cb(txStatus)
-    }
+  console.log(txSigned)
+  const extrinsic = new GenericExtrinsic(api.registry, txSigned.toU8a(), {
+    version: 4,
   })
+  const extrinsicSigned = extrinsic.addSignature(injector.signer, txSigned.signature, extrinsic.toU8a())
+  api.rpc.author.submitAndWatchExtrinsic(extrinsicSigned).then(console.log)
+  // const request = {
+  //   chain: '2',
+  //   address: senderAddress,
+  //   data: tx.toHex(),
+  //   type: 'bytes',
+  // }
+  // console.log(',,,', request)
+
+  // const result = injector.signer.signAndSendPayload(request, cb)
+
+  // // tx.method
+  // api.derive.tx
+  //   .signingInfo(senderAddress)
+  //   .then(options => {
+  //     console.log('options', options)
+  //     tx.
+  //     const initialPayload = api.registry.createType('SignerPayload', {
+  //       ...options,
+  //       address: senderAddress,
+  //       blockNumber: 0,
+  //       method: tx.method,
+  //       runtimeVersion: api.runtimeVersion,
+  //       transactionVersion: tx.version,
+  //       version: 4,
+  //     })
+  //     // tx.toU8a
+  //     const payload = {
+  //       chain: '2',
+  //       address: senderAddress,
+  //       payload: { signing: initialPayload.toU8a(), tx: tx.toU8a() },
+  //     }
+  //     console.log(',,,', payload)
+  //     const result = injector.signer.signAndSendPayload(payload, cb)
+  //   })
+  //   .catch(console.log)
+
+  //   const payload ={
+  //     chain: '2',
+  //     address: senderAddress,
+  //     blockHash: api.genesisHash,
+  //     era: api.era,
+  //     blockNumber: payload.meta.
+  //     genesisHash: string;
+  //     method: string;
+  //     nonce: string;
+  //     specVersion: string;
+  //     tip: string;
+  //     transactionVersion: string;
+  //     signedExtensions: string[];
+  //     version: number;
+  // }
+
+  // const txSigned = await tx.signAsync(senderAddress, { signer: injector.signer })
+
+  // const unsub = await txSigned.send(async result => {
+  //   const { status, events = [], dispatchError } = result
+
+  //   for (const {
+  //     phase,
+  //     event: { data, method, section },
+  //   } of events) {
+  //     console.info(`\t${phase}: ${section}.${method}:: ${data}`)
+  //   }
+
+  //   let txStatus: SendStatus = 'INPROGRESS'
+
+  //   if (status.isInBlock) {
+  //     console.info(`Transaction included at blockHash ${status.asInBlock}`)
+  //   }
+  //   if (status.isFinalized) {
+  //     console.info(`Transaction finalized at blockHash ${status.asFinalized}`)
+  //     unsub()
+
+  //     const someSuccess = events.some(
+  //       ({ event: { method, section } }) => section === 'system' && method === 'ExtrinsicSuccess'
+  //     )
+  //     const someFailed = events.some(
+  //       ({ event: { method, section } }) => section === 'system' && method === 'ExtrinsicFailed'
+  //     )
+
+  //     if (dispatchError && dispatchError.isModule && api) {
+  //       const decoded = api.registry.findMetaError(dispatchError.asModule)
+  //       const { docs, name, section } = decoded
+  //       console.log('error', `${section}.${name}: ${docs.join(' ')}`)
+  //       txStatus = 'FAILED'
+  //     } else if (dispatchError) {
+  //       console.log('error', dispatchError.toString())
+  //       txStatus = 'FAILED'
+  //     }
+
+  //     if (someSuccess && !someFailed) {
+  //       txStatus = 'SUCCESS'
+  //     }
+
+  //     console.log(txStatus)
+  //   }
+  //   if (cb) {
+  //     cb(txStatus)
+  //   }
+  // })
 }
 
 function useNftSender(nft: NFTConsolidated, toAddress: AnyAddress): [SendStatus | undefined, () => void, () => void] {
@@ -409,7 +469,7 @@ const SendNft = styled(({ className, nft }) => {
         />
         <Button
           primary
-          disabled={!isValidAddress(toAddress)}
+          // disabled={!isValidAddress(toAddress)}
           onClick={(e: any) => {
             sendNft()
           }}
